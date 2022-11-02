@@ -3,7 +3,7 @@
   <nextMetaDataId>2</nextMetaDataId>
   <name>FromAvaility_CsvToHL7_Inbound_ADT</name>
   <description></description>
-  <revision>12</revision>
+  <revision>20</revision>
   <sourceConnector version="4.0.0">
     <metaDataId>0</metaDataId>
     <name>sourceConnector</name>
@@ -99,11 +99,8 @@ tmp[&apos;PID&apos;][&apos;PID.11&apos;][&apos;PID.11.3&apos;] = msg[&apos;row&a
 tmp[&apos;PID&apos;][&apos;PID.11&apos;][&apos;PID.11.5&apos;] = msg[&apos;row&apos;][0][&apos;Zip&apos;].toString()
 tmp[&apos;PID&apos;][&apos;PID.11&apos;][&apos;PID.11.4&apos;] = msg[&apos;row&apos;][0][&apos;State&apos;].toString()
 
-var age = calculateAge(msg[&apos;row&apos;][0][&apos;DOB&apos;].toString());
-
-$c(&apos;PatientAge&apos;,age);
-
-tmp[&apos;PID&apos;][&apos;PID.31&apos;][&apos;PID.31.1&apos;] = age;
+// calculate the age of the patient and put it in PID.31.1
+tmp[&apos;PID&apos;][&apos;PID.31&apos;][&apos;PID.31.1&apos;] = calculateAge(msg[&apos;row&apos;][0][&apos;DOB&apos;].toString());
 
 
 var genderDictionary = $gc(&apos;genderMap&apos;);
@@ -113,7 +110,10 @@ if (genderDictionary.containsKey(msg[&apos;row&apos;][0][&apos;Gender&apos;].toS
 }
 else {
 	tmp[&apos;PID&apos;][&apos;PID.8&apos;][&apos;PID.8.1&apos;] = &apos;UNK&apos;;
-}</script>
+}
+
+// set the visit number with the message id
+tmp[&apos;PV1&apos;][&apos;PV1.19&apos;][&apos;PV1.19.1&apos;] = connectorMessage.getMessageId();</script>
         </com.mirth.connect.plugins.javascriptstep.JavaScriptStep>
         <com.mirth.connect.plugins.javascriptstep.JavaScriptStep version="4.0.0">
           <name>Calculate Age</name>
@@ -224,7 +224,22 @@ else {
       </outboundProperties>
     </transformer>
     <filter version="4.0.0">
-      <elements/>
+      <elements>
+        <com.mirth.connect.plugins.javascriptrule.JavaScriptRule version="4.0.0">
+          <name>Check and allow only if gender is M or F</name>
+          <sequenceNumber>0</sequenceNumber>
+          <enabled>true</enabled>
+          <script>var genderDictionary = $gc(&apos;genderMap&apos;);
+
+logger.info(&apos;gender is &apos; +msg[&apos;row&apos;][&apos;Gender&apos;].toString());
+if (genderDictionary.containsKey(msg[&apos;row&apos;][&apos;Gender&apos;].toString())) {
+	return true;
+}
+else {
+	return false;
+}</script>
+        </com.mirth.connect.plugins.javascriptrule.JavaScriptRule>
+      </elements>
     </filter>
     <transportName>File Reader</transportName>
     <mode>SOURCE</mode>
@@ -247,7 +262,7 @@ else {
           <includeFilterTransformer>false</includeFilterTransformer>
           <threadCount>1</threadCount>
           <threadAssignmentVariable></threadAssignmentVariable>
-          <validateResponse>false</validateResponse>
+          <validateResponse>true</validateResponse>
           <resourceIds class="linked-hash-map">
             <entry>
               <string>Default Resource</string>
@@ -255,7 +270,7 @@ else {
             </entry>
           </resourceIds>
           <queueBufferSize>1000</queueBufferSize>
-          <reattachAttachments>true</reattachAttachments>
+          <reattachAttachments>false</reattachAttachments>
         </destinationConnectorProperties>
         <channelId>a7b29f00-c38c-4f7a-87c8-058d9be20240</channelId>
         <channelTemplate>${message.encodedData}</channelTemplate>
@@ -264,7 +279,33 @@ else {
         </mapVariables>
       </properties>
       <transformer version="4.0.0">
-        <elements/>
+        <elements>
+          <com.mirth.connect.plugins.javascriptstep.JavaScriptStep version="4.0.0">
+            <name>Create 5 NTE segments at the end of the message</name>
+            <sequenceNumber>0</sequenceNumber>
+            <enabled>true</enabled>
+            <script>var i = 0;
+
+// Create 5 NTE segments  and assign
+for (var segmentCount=0; segmentCount &lt; 5; segmentCount++) {
+	var nteSegment = createSegment(&apos;NTE&apos;, msg, i++);
+	nteSegment[&apos;NTE.1&apos;][&apos;NTE.1.1&apos;] = segmentCount;
+	nteSegment[&apos;NTE.3&apos;][&apos;NTE.3.1&apos;] = &apos;Test No-&apos; +  segmentCount  + &apos; result&apos;;
+}</script>
+          </com.mirth.connect.plugins.javascriptstep.JavaScriptStep>
+          <com.mirth.connect.plugins.javascriptstep.JavaScriptStep version="4.0.0">
+            <name>Create Z-Segment to send the channel name to downstream</name>
+            <sequenceNumber>1</sequenceNumber>
+            <enabled>true</enabled>
+            <script>// create a ZML user defined segment to pass the channel name to the downstream system
+createSegment(&apos;ZML&apos;, msg);
+msg[&apos;ZML&apos;][&apos;ZML.1&apos;][&apos;ZML.1.1&apos;] = &apos;9999&apos;;
+msg[&apos;ZML&apos;][&apos;ZML.2&apos;][&apos;ZML.2.1&apos;] = $(&apos;chlName&apos;);
+msg[&apos;ZML&apos;][&apos;ZML.3&apos;][&apos;ZML.3.1&apos;] = DateUtil.getCurrentDate(&apos;yyyyMMddhhmmssSSS&apos;);;</script>
+          </com.mirth.connect.plugins.javascriptstep.JavaScriptStep>
+        </elements>
+        <inboundTemplate encoding="base64"></inboundTemplate>
+        <outboundTemplate encoding="base64"></outboundTemplate>
         <inboundDataType>HL7V2</inboundDataType>
         <outboundDataType>HL7V2</outboundDataType>
         <inboundProperties class="com.mirth.connect.plugins.datatypes.hl7v2.HL7v2DataTypeProperties" version="4.0.0">
@@ -493,7 +534,7 @@ return;</undeployScript>
     <metadata>
       <enabled>true</enabled>
       <lastModified>
-        <time>1667360891930</time>
+        <time>1667405063041</time>
         <timezone>America/New_York</timezone>
       </lastModified>
       <pruningSettings>

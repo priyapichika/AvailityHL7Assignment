@@ -3,14 +3,14 @@
   <nextMetaDataId>2</nextMetaDataId>
   <name>Availity_HL7_Outbound_ADT</name>
   <description></description>
-  <revision>5</revision>
+  <revision>6</revision>
   <sourceConnector version="4.0.0">
     <metaDataId>0</metaDataId>
     <name>sourceConnector</name>
     <properties class="com.mirth.connect.connectors.vm.VmReceiverProperties" version="4.0.0">
       <pluginProperties/>
       <sourceConnectorProperties version="4.0.0">
-        <responseVariable>None</responseVariable>
+        <responseVariable>Auto-generate (Before processing)</responseVariable>
         <respondAfterProcessing>true</respondAfterProcessing>
         <processBatch>false</processBatch>
         <firstResponse>false</firstResponse>
@@ -382,7 +382,7 @@ return;</undeployScript>
     <metadata>
       <enabled>true</enabled>
       <lastModified>
-        <time>1667361261878</time>
+        <time>1667405086054</time>
         <timezone>America/New_York</timezone>
       </lastModified>
       <pruningSettings>
